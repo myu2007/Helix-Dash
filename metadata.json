@@ -1,0 +1,6 @@
+{
+  "name": "Helix Dash",
+  "description": "A high-speed 3D helix jumping game with multi-language support and skins.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

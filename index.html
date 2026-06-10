@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Helix Dash</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0088FF;
+            --primary-dark: #0055CC;
+            --danger: #FF0033;
+            --danger-dark: #CC0000;
+            --success: #00FF55;
+            --success-dark: #00CC44;
+            --energy: #00FFFF;
+            --bg-top: #E0F2FE;
+            --bg-bottom: #BAE6FD;
+        }
+        
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; font-family: 'Nunito', sans-serif; touch-action: none; outline: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+        
+        #game-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        .ui-layer { position: absolute; z-index: 10; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; }
+        .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; transition: opacity 0.3s; pointer-events: auto; z-index: 11; }
+        .screen.active { display: flex; }
+        
+        .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); padding: 35px; border-radius: 32px; border: 2px solid rgba(255,255,255,0.8); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2); text-align: center; max-width: 360px; width: 100%; margin: 0 auto; }
+        
+        h1 { color: var(--primary-dark); font-size: 3.8rem; margin: 0 0 5px; text-transform: uppercase; font-weight: 900; letter-spacing: -0.02em; line-height: 1; text-shadow: 0 4px 15px rgba(0, 136, 255, 0.2); }
+        h2 { color: #1E293B; font-size: 1.8rem; margin: 0 0 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+        p.subtitle { color: #0088FF; font-weight: 900; font-size: 1.2rem; margin-top: 0; margin-bottom: 25px; letter-spacing: 0.1em; }
+        
+        .btn { border: none; padding: 18px 30px; font-size: 1.2rem; color: white; border-radius: 20px; cursor: pointer; margin: 8px 0; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.1s; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15); }
+        .btn:active { transform: translateY(5px); border-bottom-width: 0px !important; margin-top: 13px; margin-bottom: 3px; box-shadow: none; }
+        
+        .btn-play { background: var(--primary); border-bottom: 5px solid var(--primary-dark); font-size: 1.6rem; padding: 22px 30px; }
+        .btn-success { background: var(--success); border-bottom: 5px solid var(--success-dark); color: #064E3B; }
+        .btn-shop { background: #FFFFFF; color: #1E293B; border-bottom: 5px solid #CBD5E1; }
+        .btn-danger { background: var(--danger); border-bottom: 5px solid var(--danger-dark); }
+        .btn-back { background: #F1F5F9; color: #475569; border-bottom: 5px solid #CBD5E1; margin-top: 15px; padding: 14px 30px; }
+        
+        /* HUD Interface */
+        .hud-top { position: absolute; top: 40px; left: 0; width: 100%; padding: 0 25px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 20; }
+        .hud-score-container { display: flex; flex-direction: column; align-items: flex-start; }
+        .hud-score { color: #FFFFFF; font-size: 5.5rem; text-shadow: 0 4px 15px rgba(0, 136, 255, 0.4); font-weight: 900; line-height: 0.9; pointer-events: none; }
+        .hud-best { color: #FFFFFF; font-size: 1.2rem; font-weight: 900; text-transform: uppercase; margin-top: 8px; letter-spacing: 0.05em; background: rgba(0, 136, 255, 0.8); padding: 4px 14px; border-radius: 12px; backdrop-filter: blur(5px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        
+        .hud-right { text-align: right; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end;}
+        .hud-energy { font-size: 1.6rem; color: #0088FF; font-weight: 900; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 8px 18px; border-radius: 20px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 10px 20px rgba(0, 255, 255, 0.3); border: 2px solid #00FFFF; }
+        
+        .hud-combo-container { position: absolute; top: 160px; left: 0; width: 100%; text-align: center; pointer-events: none; perspective: 500px; }
+        .hud-combo { font-size: 3.5rem; color: #FFFFFF; font-weight: 900; text-transform: uppercase; text-shadow: 0 6px 20px rgba(255,0,85,0.8), 0 2px 6px rgba(255,0,85,1); opacity: 0; transition: opacity 0.2s, transform 0.2s; transform: scale(0.5) translateZ(-100px); display: inline-block; }
+        .hud-combo.show { opacity: 1; transform: scale(1) translateZ(0) rotate(-2deg); animation: pulseCombo 0.4s infinite alternate; }
+        
+        @keyframes pulseCombo {
+            0% { transform: scale(1) translateZ(0) rotate(-3deg); }
+            100% { transform: scale(1.1) translateZ(20px) rotate(3deg); }
+        }
+
+        .stat-item { display: flex; justify-content: space-between; align-items: flex-end; font-size: 1.1rem; margin-bottom: 12px; color: #64748B; font-weight: 800; padding-bottom: 8px; border-bottom: 2px dashed #E2E8F0; }
+        .stat-item span:last-child { color: #0F172A; font-weight: 900; font-size: 1.4rem; }
+        
+        /* Shop */
+        .shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; max-height: 50vh; overflow-y: auto; padding-right: 5px; }
+        .shop-tabs { display:flex; justify-content:center; gap:10px; margin-bottom:15px; }
+        .shop-tabs .btn { padding: 10px 20px; font-size: 1rem; border-bottom: 3px solid #CBD5E1; color: #475569; background: #F1F5F9; border-radius: 12px; box-shadow: none; margin: 0; }
+        .shop-tabs .btn.active { color: white; background: var(--primary); border-bottom-color: var(--primary-dark); box-shadow: 0 4px 10px rgba(0,136,255,0.3); }
+        .shop-item { padding: 16px 5px; border: 3px solid #E2E8F0; border-radius: 20px; background: white; cursor: pointer; font-size: 1.1rem; font-weight: 900; color: #475569; transition: 0.15s; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .shop-item:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .shop-item.active { border-color: var(--primary); background: #EFF6FF; color: var(--primary-dark); box-shadow: 0 0 15px rgba(0, 136, 255, 0.3); }
+        .shop-color-preview { width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 6px 10px rgba(0,0,0,0.2); border: 2px solid rgba(255,255,255,0.9); }
+        
+        .red-overlay { background: rgba(255, 0, 51, 0.3); backdrop-filter: blur(12px); }
+        
+        /* Speed Lines FX */
+        .speed-lines { position: absolute; inset: 0; background: radial-gradient(circle, transparent 30%, rgba(0, 255, 255, 0.15) 100%); opacity: 0; pointer-events: none; transition: opacity 0.3s; mix-blend-mode: overlay; }
+        .speed-lines.active { opacity: 1; }
+
+        /* Flash bang effect */
+        .flash { position: absolute; inset: 0; background: #FFFFFF; z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.5s; }
+        .flash.active { opacity: 0.9; transition: opacity 0.05s; }
+
+        /* Ad Banner bottom fixed */
+        .ad-banner-container {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 320px;
+            height: 50px;
+            z-index: 1000;
+            pointer-events: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="game-canvas"></canvas>
+
+    <div class="ad-banner-container">
+        <script>
+          atOptions = {
+            'key' : '5fd87ea0d84b9e1380b08690e70ee23d',
+            'format' : 'iframe',
+            'height' : 50,
+            'width' : 320,
+            'params' : {}
+          };
+        </script>
+        <script src="https://www.highperformanceformat.com/5fd87ea0d84b9e1380b08690e70ee23d/invoke.js"></script>
+    </div>
+
+    <div id="ui" class="ui-layer">
+        <div class="lang-selector" style="position:absolute; top: 20px; right: 20px; z-index: 100; pointer-events: auto;">
+            <select id="lang-select" style="padding: 6px 10px; border-radius: 12px; border: 2px solid #CBD5E1; background: rgba(255,255,255,0.9); font-weight: bold; font-family: 'Nunito', sans-serif; font-size: 0.9rem; color: var(--primary-dark); cursor: pointer; outline: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                <option value="en">English</option>
+                <option value="ru">Русский</option>
+                <option value="es">Español</option>
+            </select>
+        </div>
+        
+        <div id="flash-effect" class="flash"></div>
+        <div id="speed-effect" class="speed-lines"></div>
+
+        <!-- HUD -->
+        <div id="scr-hud" class="screen" style="justify-content: flex-start;">
+            <div class="hud-top">
+                <div class="hud-score-container">
+                    <div id="hud-score" class="hud-score">0</div>
+                    <div class="hud-best">BEST: <span id="hud-best-val">0</span></div>
+                </div>
+                <div class="hud-right">
+                    <div class="hud-energy">⚡ <span id="hud-energy-val">0</span></div>
+                </div>
+            </div>
+            <div class="hud-combo-container">
+                <div id="hud-combo" class="hud-combo">COMBO x2</div>
+            </div>
+        </div>
+
+        <!-- MAIN MENU -->
+        <div id="scr-menu" class="screen active">
+            <div style="flex:1;"></div>
+            <div class="glass-panel" style="margin-bottom: 20vh;">
+                <h1 id="t-title">HELIX DASH</h1>
+                <p id="t-subtitle" class="subtitle">MAXIMUM VELOCITY</p>
+                <button id="btn-play" class="btn btn-play">PLAY</button>
+                <button id="btn-shop" class="btn btn-shop">SKINS</button>
+            </div>
+        </div>
+
+        <!-- SHOP -->
+        <div id="scr-shop" class="screen">
+            <div class="glass-panel">
+                <h2 id="t-shop-title">SHOP</h2>
+                <div class="hud-energy" style="margin: 0 auto 15px; display: inline-flex;">⚡ <span id="shop-energy">0</span></div>
+                
+                <div class="shop-tabs">
+                    <button id="tab-skins" class="btn active">SKINS</button>
+                    <button id="tab-music" class="btn">MUSIC</button>
+                </div>
+
+                <div id="shop-grid" class="shop-grid"></div>
+                <button id="btn-shop-back" class="btn btn-back">BACK</button>
+            </div>
+        </div>
+
+        <!-- GAME OVER -->
+        <div id="scr-gameover" class="screen red-overlay">
+            <div class="glass-panel" style="padding: 16px 20px; max-width: 320px; border-radius: 24px;">
+                <h1 id="t-crashed" style="color: var(--danger-dark); font-size: 2.2rem; margin: 0 0 10px; line-height: 1.1;">CRASHED!</h1>
+                
+                <div class="stat-item" style="margin-bottom: 6px; padding-bottom: 6px; font-size: 0.95rem; margin-top: 10px;"><span id="t-score">SCORE</span><span id="go-score" style="font-size: 1.2rem;">0</span></div>
+                <div class="stat-item" style="margin-bottom: 6px; padding-bottom: 6px; font-size: 0.95rem;"><span id="t-best-score">BEST SCORE</span><span id="go-best" style="font-size: 1.2rem;">0</span></div>
+                <div class="stat-item" style="margin-bottom: 6px; padding-bottom: 6px; font-size: 0.95rem;"><span id="t-energy">ENERGY ABSORBED</span><span id="go-energy" style="font-size: 1.2rem;">+0</span></div>
+                <div class="stat-item" style="margin-bottom: 6px; padding-bottom: 6px; font-size: 0.95rem;"><span id="t-max-combo">MAX COMBO</span><span id="go-combo" style="font-size: 1.2rem;">x0</span></div>
+                <div class="stat-item" style="border:none; margin-top: 8px; margin-bottom: 0; background: rgba(0, 136, 255, 0.08); padding: 8px 12px; border-radius: 12px; font-size: 0.95rem;"><span id="t-total-energy" style="color: var(--primary-dark); font-weight: 800;">TOTAL ENERGY</span><span id="go-total-energy" style="color: var(--primary-dark); font-weight: 900; font-size: 1.2rem;">0 ⚡</span></div>
+                
+                <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+                    <button id="btn-go-continue" class="btn btn-success" style="padding: 10px 15px; font-size: 1.05rem; margin: 0; height: 42px; border-radius: 14px;">▶ CONTINUE (150 ⚡)</button>
+                    <button id="btn-go-retry" class="btn btn-play" style="padding: 10px 15px; font-size: 1.05rem; margin: 0; height: 42px; border-radius: 14px;">RESTART</button>
+                    <button id="btn-go-menu" class="btn btn-back" style="padding: 10px 15px; font-size: 0.95rem; margin: 0; height: 42px; border-radius: 14px;">MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+        // --- GAME STATE ---
+        let state = 'MENU'; 
+        let score = 0;
+        let combo = 0;
+        let maxComboThisRun = 0;
+        let energyThisRun = 0;
+        let hasContinued = false;
+        let isDead = false;
+        let lastEvo = 0;
+
+        // --- i18n LOCALE ---
+        const i18n = {
+            en: {
+                title: "HELIX DASH",
+                subtitle: "MAXIMUM VELOCITY",
+                play: "PLAY",
+                skins: "SKINS",
+                back: "BACK",
+                selectSkin: "SELECT SKIN",
+                crashed: "CRASHED!",
+                score: "SCORE",
+                bestScore: "BEST SCORE",
+                energyAbsorbed: "ENERGY ABSORBED",
+                maxCombo: "MAX COMBO",
+                totalEnergy: "TOTAL ENERGY",
+                continueAd: "▶ CONTINUE (150 ⚡)",
+                loadingAd: "RESUMING...",
+                restart: "RESTART",
+                mainMenu: "MAIN MENU",
+                equipped: "EQUIPPED",
+                select: "SELECT",
+                combo: "COMBO x",
+                best: "BEST",
+                shopTitle: "SHOP", skinsTab: "SKINS", musicTab: "MUSIC",
+                skinsNames: { 'Classic': 'Classic', 'Fire': 'Fire', 'Ice': 'Ice', 'Crystal': 'Crystal', 'Rainbow': 'Rainbow', 'Galaxy': 'Galaxy' },
+                musicNames: { 'Classic': 'Classic', 'Ambient': 'Ambient', 'Techno': 'Techno', 'Epic': 'Epic', 'Cyberpunk': 'Cyberpunk' }
+            },
+            ru: {
+                title: "HELIX DASH",
+                subtitle: "МАКСИМАЛЬНАЯ СКОРОСТЬ",
+                play: "ИГРАТЬ",
+                skins: "СКИНЫ",
+                back: "НАЗАД",
+                selectSkin: "ВЫБЕРИТЕ СКИН",
+                crashed: "РАЗБИЛСЯ!",
+                score: "СЧЕТ",
+                bestScore: "ЛУЧШИЙ СЧЕТ",
+                energyAbsorbed: "СОБРАНО ЭНЕРГИИ",
+                maxCombo: "МАКС КОМБО",
+                totalEnergy: "ВСЕГО ЭНЕРГИИ",
+                continueAd: "▶ ПРОДОЛЖИТЬ (150 ⚡)",
+                loadingAd: "ЗАГРУЗКА...",
+                restart: "ЗАНОВО",
+                mainMenu: "ГЛАВНОЕ МЕНЮ",
+                equipped: "ВЫБРАНО",
+                select: "ВЫБРАТЬ",
+                combo: "КОМБО х",
+                best: "ЛУЧШИЙ",
+                shopTitle: "МАГАЗИН", skinsTab: "СКИНЫ", musicTab: "МУЗЫКА",
+                skinsNames: { 'Classic': 'Классика', 'Fire': 'Огонь', 'Ice': 'Лед', 'Crystal': 'Кристалл', 'Rainbow': 'Радуга', 'Galaxy': 'Галактика' },
+                musicNames: { 'Classic': 'Классика', 'Ambient': 'Эмбиент', 'Techno': 'Техно', 'Epic': 'Эпик', 'Cyberpunk': 'Киберпанк' }
+            },
+            es: {
+                title: "HELIX DASH",
+                subtitle: "VELOCIDAD MÁXIMA",
+                play: "JUGAR",
+                skins: "ASPECTOS",
+                back: "VOLVER",
+                selectSkin: "ELIGE ASPECTO",
+                crashed: "¡ESTRELLADO!",
+                score: "PUNTAJE",
+                bestScore: "MEJOR PUNTAJE",
+                energyAbsorbed: "ENERGÍA ABS",
+                maxCombo: "COMBO MÁX",
+                totalEnergy: "ENERGÍA TOTAL",
+                continueAd: "▶ CONTINUAR (150 ⚡)",
+                loadingAd: "CARGANDO...",
+                restart: "REINICIAR",
+                mainMenu: "MENÚ PRINCIPAL",
+                equipped: "EQUIPADO",
+                select: "ELEGIR",
+                combo: "COMBO x",
+                best: "MEJOR",
+                shopTitle: "TIENDA", skinsTab: "ASPECTOS", musicTab: "MÚSICA",
+                skinsNames: { 'Classic': 'Clásico', 'Fire': 'Fuego', 'Ice': 'Hielo', 'Crystal': 'Cristal', 'Rainbow': 'Arcoíris', 'Galaxy': 'Galaxia' },
+                musicNames: { 'Classic': 'Clásico', 'Ambient': 'Ambiental', 'Techno': 'Techno', 'Epic': 'Épico', 'Cyberpunk': 'Cyberpunk' }
+            }
+        };
+
+        let currentLang = localStorage.getItem('helixDashLang') || 'en';
+
+        function applyLang() {
+            const t = i18n[currentLang];
+            document.getElementById('t-title').innerText = t.title;
+            document.getElementById('t-subtitle').innerText = t.subtitle;
+            document.getElementById('btn-play').innerText = t.play;
+            document.getElementById('btn-shop').innerText = t.skins;
+            if(document.getElementById('t-select-skin')) document.getElementById('t-select-skin').innerText = t.selectSkin;
+            if(document.getElementById('t-shop-title')) document.getElementById('t-shop-title').innerText = t.shopTitle;
+            document.getElementById('btn-shop-back').innerText = t.back;
+            document.getElementById('t-crashed').innerText = t.crashed;
+            document.getElementById('t-score').innerText = t.score;
+            document.getElementById('t-best-score').innerText = t.bestScore;
+            document.getElementById('t-energy').innerText = t.energyAbsorbed;
+            document.getElementById('t-max-combo').innerText = t.maxCombo;
+            if(document.getElementById('t-total-energy')) document.getElementById('t-total-energy').innerText = t.totalEnergy;
+            document.getElementById('btn-go-continue').innerText = t.continueAd;
+            document.getElementById('btn-go-retry').innerText = t.restart;
+            document.getElementById('btn-go-menu').innerText = t.mainMenu;
+            
+            document.querySelector('.hud-best').innerHTML = `${t.best}: <span id="hud-best-val">${stats.bestScore}</span>`;
+            if (combo > 1) {
+                document.getElementById('hud-combo').innerText = `${t.combo}${combo}`;
+            }
+
+            if (state === 'SHOP') updateShopUI();
+        }
+
+        document.getElementById('lang-select').value = currentLang;
+        document.getElementById('lang-select').addEventListener('change', (e) => {
+            currentLang = e.target.value;
+            localStorage.setItem('helixDashLang', currentLang);
+            applyLang();
+        });
+        
+        let stats = JSON.parse(localStorage.getItem('hyperHelixEvoStats')) || {
+            bestScore: 0, energy: 0, gamesPlayed: 0, bestCombo: 0, equippedBall: 'Classic', unlockedBalls: ['Classic'], equippedMusic: 'Classic', unlockedMusic: ['Classic']
+        };
+        if (!stats.unlockedBalls) stats.unlockedBalls = ['Classic'];
+        if (!stats.unlockedMusic) stats.unlockedMusic = ['Classic'];
+        if (!stats.equippedMusic) stats.equippedMusic = 'Classic';
+
+        function saveStats() {
+            localStorage.setItem('hyperHelixEvoStats', JSON.stringify(stats));
+            updateHUDData();
+        }
+
+        // --- AUDIO ENGINE ---
+        let audioCtx;
+        let musicTimer = null;
+        let currentNote = 0;
+        let nextNoteTime = 0;
+
+        function initAudio() {
+            if(!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                musicTimer = setInterval(musicScheduler, 25);
+            }
+            if(audioCtx.state === 'suspended') {
+                audioCtx.resume();
+                nextNoteTime = audioCtx.currentTime + 0.1;
+            }
+        }
+
+        function playTone(freq, type, duration, vol=0.1, time) {
+            if(!audioCtx || audioCtx.state !== 'running') return;
+            const t = time !== undefined ? time : audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, t);
+            if(type === 'sawtooth' || type === 'square') {
+                osc.frequency.exponentialRampToValueAtTime(freq*0.5, t + duration);
+            }
+            gain.gain.setValueAtTime(vol, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + duration);
+        }
+
+        function playKick(time) {
+            if(!audioCtx || audioCtx.state !== 'running') return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(150, time);
+            osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
+            gain.gain.setValueAtTime(0.3, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(time);
+            osc.stop(time + 0.5);
+        }
+
+        function playHiHat(time) {
+            if(!audioCtx || audioCtx.state !== 'running') return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(8000, time);
+            gain.gain.setValueAtTime(0.05, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(time);
+            osc.stop(time + 0.05);
+        }
+
+        function getFreq(base, semis) {
+            if (semis === null || semis === undefined) return 0;
+            return base * Math.pow(2, semis / 12);
+        }
+
+        function musicScheduler() {
+            if (!audioCtx || audioCtx.state !== 'running' || state === 'GAMEOVER') return;
+            if (nextNoteTime < audioCtx.currentTime) {
+                nextNoteTime = audioCtx.currentTime + 0.05;
+            }
+            while (nextNoteTime < audioCtx.currentTime + 0.1) {
+                scheduleNote(currentNote, nextNoteTime);
+                nextMusicNote();
+            }
+        }
+
+        function nextMusicNote() {
+            const trackName = stats.equippedMusic || 'Classic';
+            const track = musicShopData[trackName] || musicShopData['Classic'];
+            const secondsPerBeat = 60.0 / track.tempo; 
+            nextNoteTime += secondsPerBeat * 0.25;
+            currentNote++;
+            if (currentNote >= 16) {
+                currentNote = 0;
+            }
+        }
+
+        function scheduleNote(step, time) {
+            const trackName = stats.equippedMusic || 'Classic';
+            const track = musicShopData[trackName] || musicShopData['Classic'];
+            
+            if (track.notes[step] !== null && track.notes[step] !== undefined) {
+                const freq = getFreq(track.baseFreq, track.notes[step]);
+                playTone(freq, track.type, track.duration, state === 'PLAYING' ? 0.03 : 0.015, time);
+            }
+            
+            if (track.drums && track.drums[step]) {
+                if (track.drums[step] === 'K') playKick(time);
+                else if (track.drums[step] === 'H') playHiHat(time);
+            }
+        }
+
+        const sndBounce = () => playTone(300 + Math.random()*50, 'sine', 0.2, 0.1);
+        const sndComboPass = () => playTone(400 + Math.min(combo, 30) * 40, 'sine', 0.4, 0.1);
+        const sndCrash = (epic=false) => playTone(epic ? 70 : 120, 'sawtooth', epic ? 0.8 : 0.6, epic ? 0.4 : 0.2);
+        const sndAbsorb = () => { playTone(1500, 'square', 0.05, 0.02); };
+        const sndEnergyBreak = () => { playTone(800, 'square', 0.1, 0.2); setTimeout(()=>playTone(1200, 'triangle', 0.3, 0.2), 50); };
+
+        // --- THREE.JS SETUP ---
+        const canvas = document.getElementById('game-canvas');
+        const scene = new THREE.Scene();
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+        camera.position.set(0, 15, 12);
+        
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // Biomes Setup (Super bright and happy)
+        const biomes = [
+            { y: 15,    bg: new THREE.Color(0xdcfce7), light: new THREE.Color(0xffffff) }, // Mint / Sky
+            { y: -150,  bg: new THREE.Color(0xe0f2fe), light: new THREE.Color(0xfffbeb) }, // Bright Blue
+            { y: -350,  bg: new THREE.Color(0xf3e8ff), light: new THREE.Color(0xffffff) }, // Bright Crystal
+            { y: -600,  bg: new THREE.Color(0xffedd5), light: new THREE.Color(0xffffff) }, // Bright Warm
+            { y: -1000, bg: new THREE.Color(0xcffafe), light: new THREE.Color(0xffffff) }  // Bright Cyan
+        ];
+
+        scene.background = biomes[0].bg;
+        scene.fog = new THREE.FogExp2(biomes[0].bg, 0.008);
+        
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0xe0f2fe, 1.8);
+        scene.add(hemiLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(20, 50, -15);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.camera.near = 10;
+        dirLight.shadow.camera.far = 100;
+        dirLight.shadow.camera.left = -20;
+        dirLight.shadow.camera.right = 20;
+        dirLight.shadow.camera.top = 20;
+        dirLight.shadow.camera.bottom = -20;
+        scene.add(dirLight);
+
+        // --- MATERIALS ---
+        const materials = {
+            safe: new THREE.MeshStandardMaterial({color: 0x00A0FF, roughness: 0.05, metalness: 0.05}),
+            safeAlt: new THREE.MeshStandardMaterial({color: 0x44BBFF, roughness: 0.05}),
+            danger: new THREE.MeshStandardMaterial({color: 0xFF0044, roughness: 0.2}),
+            bonus: new THREE.MeshStandardMaterial({color: 0x00FF66, roughness: 0.05, metalness: 0.2}),
+            pole: new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 0.05, metalness: 0.2}), // Premium glossy plastic
+            energyItem: new THREE.MeshBasicMaterial({color: 0x00FFFF})
+        };
+
+        const ballShopData = {
+            'Classic': { color: 0x0088FF, name: 'Classic', price: 0 },
+            'Fire': { color: 0xff4400, emissive: 0xff2200, emissiveIntensity: 0.6, name: 'Fire', price: 50 },
+            'Ice': { color: 0x00ffff, transmission: 0.9, transparent: true, roughness: 0.1, name: 'Ice', price: 150 },
+            'Crystal': { color: 0xe0aaff, transmission: 0.95, transparent: true, ior: 1.5, roughness: 0, name: 'Crystal', price: 400 },
+            'Rainbow': { color: 0xffffff, name: 'Rainbow', isRainbow: true, price: 800 },
+            'Galaxy': { color: 0x110033, emissive: 0x330066, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.2, name: 'Galaxy', price: 1500 }
+        };
+
+        const musicShopData = {
+            'Classic': {
+                name: 'Classic', price: 0,
+                notes: [0, 4, 7, 12, 7, 4, 0, 4, 7, 12, 16, 12, 7, 4, 0, -5],
+                baseFreq: 261.63, type: 'square', duration: 0.1, tempo: 120,
+                drums: ['K', null, 'H', null, 'K', null, 'H', null, 'K', null, 'H', null, 'K', null, 'H', null]
+            },
+            'Ambient': {
+                name: 'Ambient', price: 100,
+                notes: [0, null, 3, null, 7, null, 10, null, 12, null, 10, null, 7, null, 3, null],
+                baseFreq: 220.00, type: 'sine', duration: 0.3, tempo: 80,
+                drums: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+            },
+            'Techno': {
+                name: 'Techno', price: 300,
+                notes: [0, 0, 12, 0, 0, 0, 12, 0, -12, 0, 12, 0, -12, 0, 12, 0], 
+                baseFreq: 130.81, type: 'sawtooth', duration: 0.1, tempo: 150,
+                drums: ['K', 'H', 'H', 'H', 'K', 'H', 'H', 'H', 'K', 'H', 'H', 'H', 'K', 'H', 'H', 'H']
+            },
+            'Epic': {
+                name: 'Epic', price: 800,
+                notes: [0, 2, 4, 7, 0, 2, 4, 7, -3, -1, 2, 4, -3, -1, 2, 4],
+                baseFreq: 146.83, type: 'sawtooth', duration: 0.2, tempo: 130,
+                drums: ['K', null, 'H', null, 'K', 'K', 'H', null, 'K', null, 'H', null, 'K', null, 'H', 'H']
+            },
+            'Cyberpunk': {
+                name: 'Cyberpunk', price: 1500,
+                notes: [0, null, 12, null, 3, null, 15, null, -2, null, 10, null, 5, null, 17, null],
+                baseFreq: 110.00, type: 'square', duration: 0.15, tempo: 140,
+                drums: ['K', 'H', 'K', 'H', 'K', 'H', 'K', 'H', 'K', 'H', 'K', 'H', 'K', 'H', 'K', 'H']
+            }
+        };
+
+        const TOWER_RADIUS = 3.6;
+        const SEGMENTS = 26;
+        const SEG_ANGLE = (Math.PI * 2) / SEGMENTS;
+        const GAP_HEIGHT = 4.5;
+        
+        // Geometry
+        const shape = new THREE.Shape();
+        shape.absarc(0, 0, TOWER_RADIUS, 0, SEG_ANGLE, false);
+        shape.lineTo(TOWER_RADIUS*0.5 * Math.cos(SEG_ANGLE), TOWER_RADIUS*0.5 * Math.sin(SEG_ANGLE));
+        shape.absarc(0, 0, TOWER_RADIUS*0.5, SEG_ANGLE, 0, true);
+        shape.lineTo(TOWER_RADIUS, 0);
+        const segGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.8, curveSegments: 3, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 2 });
+        segGeo.rotateX(Math.PI/2); 
+        segGeo.translate(0, 0.4, 0);
+
+        let towerGroup = new THREE.Group();
+        scene.add(towerGroup);
+        
+        let poleMesh;
+        let rings = [];
+        let towerDepthCounter = 0;
+
+        // Ball & Evolution Shell
+        const ballGroup = new THREE.Group();
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.55, 32, 32), new THREE.MeshStandardMaterial());
+        ball.castShadow = true;
+        ballGroup.add(ball);
+        
+        const ballShell = new THREE.Mesh(new THREE.SphereGeometry(0.65, 32, 32), new THREE.MeshBasicMaterial({color: 0x00ffff, wireframe: true, transparent: true, opacity: 0}));
+        ballGroup.add(ballShell);
+        
+        ballGroup.position.set(0, 10, TOWER_RADIUS * 0.75);
+        scene.add(ballGroup);
+
+        let ballVelocityY = 0;
+
+        // Visual FX Arrays
+        const particles = [];
+        const partGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+        let activeShockwaves = [];
+        let shakeTime = 0;
+        let shakeIntensity = 0;
+
+        function addShake(duration, intensity) {
+            shakeTime = Math.max(shakeTime, duration);
+            shakeIntensity = Math.max(shakeIntensity, intensity);
+        }
+
+        function triggerFlash() {
+            const f = document.getElementById('flash-effect');
+            f.classList.remove('active');
+            void f.offsetWidth; // force reflow
+            f.classList.add('active');
+            setTimeout(() => f.classList.remove('active'), 80);
+        }
+
+        function spawnParticles(pos, colorMaterial, count=15, speed=0.5) {
+            for(let i=0; i<count; i++) {
+                let p = new THREE.Mesh(partGeo, colorMaterial);
+                p.position.copy(pos);
+                p.velocity = new THREE.Vector3((Math.random()-0.5)*speed*2, (Math.random()*speed)*1.5, (Math.random()-0.5)*speed*2);
+                p.rotationVelocity = new THREE.Vector3((Math.random()-0.5)*20, (Math.random()-0.5)*20, (Math.random()-0.5)*20);
+                p.life = 1.0;
+                scene.add(p);
+                particles.push(p);
+            }
+        }
+
+        // --- INFINITE TOWER ---
+        function initTower() {
+            towerDepthCounter = 0;
+            while(rings.length > 0) {
+                towerGroup.remove(rings.pop());
+            }
+            if(!poleMesh) {
+                poleMesh = new THREE.Mesh(new THREE.CylinderGeometry(TOWER_RADIUS*0.5-0.05, TOWER_RADIUS*0.5-0.05, 1500, 32), materials.pole);
+                poleMesh.receiveShadow = true;
+                poleMesh.castShadow = true;
+                towerGroup.add(poleMesh);
+            }
+            for(let i=0; i<15; i++) {
+                generateRing(towerDepthCounter++);
+            }
+        }
+
+        function generateRing(depthIndex) {
+            let rGroup = new THREE.Group();
+            rGroup.y = 10 - depthIndex * GAP_HEIGHT;
+            rGroup.position.y = rGroup.y;
+            rGroup.userData = { destroyed: false, passed: false };
+
+            let diffScale = Math.min(1.0, depthIndex / 250); 
+            
+            let gapSize = Math.max(3, Math.floor(8 - diffScale * 5));
+            let gapPos = Math.floor(Math.random() * SEGMENTS);
+            
+            let dangerChance = diffScale * 0.6; 
+            if (depthIndex < 6) dangerChance = 0;
+
+            let bonusChance = 0.2 + diffScale * 0.3; 
+            if (depthIndex < 1) bonusChance = 0;
+
+            let hasBonus = Math.random() < bonusChance;
+            let bonusLength = hasBonus ? Math.floor(Math.random() * 4) + 2 : 0;
+            let bonusStartPos = -1;
+            if (hasBonus) {
+                let bonusStartDist = gapSize + Math.floor(Math.random() * Math.max(1, SEGMENTS - gapSize - bonusLength));
+                bonusStartPos = (gapPos + bonusStartDist) % SEGMENTS;
+            }
+
+            for(let s=0; s<SEGMENTS; s++) {
+                let dist = (s - gapPos + SEGMENTS) % SEGMENTS;
+                if (dist < gapSize) continue; 
+
+                let type = 'safe';
+                let inBonus = false;
+                if (hasBonus) {
+                    let dToStart = (s - bonusStartPos + SEGMENTS) % SEGMENTS;
+                    if (dToStart < bonusLength) inBonus = true;
+                }
+
+                if (inBonus) {
+                    type = 'bonus';
+                } else if (Math.random() < dangerChance) {
+                    type = 'danger';
+                }
+
+                let mat = materials.safe;
+                if (type === 'danger') mat = materials.danger;
+                else if (type === 'bonus') mat = materials.bonus;
+                else mat = (s%2===0 ? materials.safe : materials.safeAlt);
+                
+                let slice = new THREE.Mesh(segGeo, mat);
+                slice.rotation.y = s * SEG_ANGLE;
+                slice.receiveShadow = true;
+                slice.castShadow = true;
+                slice.userData = { type: type };
+                rGroup.add(slice);
+            }
+            
+            towerGroup.add(rGroup);
+            rings.push(rGroup);
+        }
+
+        function destroyRing(ringGroup, epic=false, isBonus=false) {
+            ringGroup.userData.destroyed = true;
+            ringGroup.children.forEach(c => {
+                c.userData.vY = Math.random() * 12 + 8;
+                c.userData.rX = (Math.random()-0.5)*25;
+                c.userData.rZ = (Math.random()-0.5)*25;
+            });
+            
+            if(epic || isBonus) {
+                addShake( epic ? 0.4 : 0.2, epic ? 0.9 : 0.5 );
+                triggerFlash();
+                let swGeo = new THREE.TorusGeometry(TOWER_RADIUS, 0.5, 8, 32);
+                let swMat = new THREE.MeshBasicMaterial({color: isBonus ? 0x00FF55 : 0x00FFFF, transparent: true, opacity: 0.9});
+                let sw = new THREE.Mesh(swGeo, swMat);
+                sw.position.set(0, ringGroup.y, 0);
+                sw.rotation.x = Math.PI/2;
+                scene.add(sw);
+                activeShockwaves.push(sw);
+            } else {
+                addShake( 0.15, 0.4 );
+            }
+
+            if(isBonus) {
+                sndEnergyBreak();
+                // Spawn energy stream
+                for(let i=0; i<35; i++) {
+                    let p = new THREE.Mesh(new THREE.TetrahedronGeometry(Math.random()*0.4 + 0.2), materials.energyItem);
+                    p.position.set( (Math.random()-0.5)*TOWER_RADIUS*2, ringGroup.y + (Math.random()-0.5)*2, (Math.random()-0.5)*TOWER_RADIUS*2 );
+                    p.velocity = new THREE.Vector3((Math.random()-0.5)*20, Math.random()*25, (Math.random()-0.5)*20);
+                    p.isEnergy = true;
+                    p.life = 1.3; 
+                    p.state = 'scatter';
+                    scene.add(p);
+                    particles.push(p);
+                }
+            } else if(epic) {
+                sndCrash(true);
+            }
+        }
+
+        // --- CONTROLS ---
+        let isDragging = false;
+        let prevX = 0;
+        let targetTowerRotation = 0;
+
+        window.addEventListener('pointerdown', e => {
+            if(state !== 'PLAYING') return;
+            initAudio();
+            isDragging = true;
+            prevX = e.clientX;
+        });
+        window.addEventListener('pointermove', e => {
+            if(!isDragging || state !== 'PLAYING') return;
+            let delta = e.clientX - prevX;
+            targetTowerRotation += delta * 0.013;
+            prevX = e.clientX;
+        });
+        window.addEventListener('pointerup', () => isDragging = false);
+        window.addEventListener('pointercancel', () => isDragging = false);
+
+        // --- UI ---
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            if(id) document.getElementById(id).classList.add('active');
+            const langSel = document.querySelector('.lang-selector');
+            if (langSel) {
+                langSel.style.display = (id === 'scr-menu' || id === 'scr-shop') ? 'block' : 'none';
+            }
+        }
+
+        function updateHUDData() {
+            document.getElementById('hud-best-val').innerText = stats.bestScore;
+            document.getElementById('hud-energy-val').innerText = stats.energy;
+        }
+
+        function updateHUD() {
+            document.getElementById('hud-score').innerText = score;
+            
+            let cEl = document.getElementById('hud-combo');
+            const speedLines = document.getElementById('speed-effect');
+            
+            if(combo > 2) {
+                cEl.innerText = `${i18n[currentLang].combo}${combo}`;
+                cEl.classList.add('show');
+                speedLines.classList.add('active');
+            } else {
+                cEl.classList.remove('show');
+                speedLines.classList.remove('active');
+            }
+        }
+
+        function startSession(isContinue=false) {
+            if(!isContinue) {
+                stats.gamesPlayed++;
+                saveStats();
+                score = 0;
+                combo = 0;
+                maxComboThisRun = 0;
+                energyThisRun = 0;
+                lastEvo = 0;
+                hasContinued = false;
+                initTower();
+                
+                ballGroup.position.set(0, rings[0].y + 10, TOWER_RADIUS * 0.75);
+                camera.position.y = ballGroup.position.y + 6;
+                applyEvolution(0);
+            } else {
+                hasContinued = true;
+                for (let r of rings) {
+                    if (r.y < ballGroup.position.y + 2 && r.y > ballGroup.position.y - 3) {
+                        destroyRing(r, true);
+                    }
+                }
+                ballGroup.position.y += 3;
+            }
+            
+            ballVelocityY = 0;
+            isDead = false;
+            targetTowerRotation = towerGroup.rotation.y;
+            ballGroup.visible = true;
+            
+            state = 'PLAYING';
+            showScreen('scr-hud');
+            updateHUDData();
+            updateHUD();
+        }
+
+        function handleGameOver() {
+            isDead = true;
+            state = 'GAMEOVER';
+            sndCrash(true);
+            spawnParticles(ballGroup.position, materials.danger, 50, 1.2);
+            ballGroup.visible = false;
+            addShake(0.6, 1.5);
+            triggerFlash();
+            
+            if(score > stats.bestScore) stats.bestScore = score;
+            if(maxComboThisRun > stats.bestCombo) stats.bestCombo = maxComboThisRun;
+            saveStats();
+            
+            document.getElementById('go-score').innerText = score;
+            document.getElementById('go-best').innerText = stats.bestScore;
+            document.getElementById('go-energy').innerText = `+${energyThisRun}`;
+            document.getElementById('go-combo').innerText = `x${maxComboThisRun}`;
+            document.getElementById('go-total-energy').innerText = `${stats.energy} ⚡`;
+            
+            const btnCont = document.getElementById('btn-go-continue');
+            if (stats.energy >= 150) {
+                btnCont.style.display = 'flex';
+                btnCont.innerText = i18n[currentLang].continueAd;
+            } else {
+                btnCont.style.display = 'none';
+            }
+            
+            setTimeout(() => showScreen('scr-gameover'), 1000);
+            document.getElementById('speed-effect').classList.remove('active');
+        }
+
+        function applyEvolution(stage) {
+            updateBallMaterial(); // reset
+            if (stage >= 4) { // Legendary
+                 ballShell.material.opacity = 1.0;
+                 ballShell.material.color.setHSL((Date.now()/1000)%1, 1, 0.5);
+            } else if (stage >= 3) { // Crystal
+                 ball.material = new THREE.MeshPhysicalMaterial({color: 0xffffff, transmission: 0.9, roughness: 0.0, ior: 1.5});
+                 ballShell.material.opacity = 0.5;
+                 ballShell.material.color.setHex(0xe0aaff);
+                 ballShell.material.wireframe = false;
+            } else if (stage >= 2) { // Energy
+                 ballShell.material.opacity = 0.8;
+                 ballShell.material.color.setHex(0x00ffff);
+                 ballShell.material.wireframe = true;
+            } else if (stage >= 1) { // Glow
+                 ball.material.emissive.setHex(0x00aaff);
+                 ball.material.emissiveIntensity = 0.8;
+                 ballShell.material.opacity = 0;
+            } else {
+                 // Normal
+                 ballShell.material.opacity = 0;
+            }
+        }
+
+        // --- PHYSICS & LOGIC ---
+        const raycaster = new THREE.Raycaster();
+        const downVec = new THREE.Vector3(0, -1, 0);
+
+        function updatePhysics(dt) {
+            if(state !== 'PLAYING' || isDead) return;
+
+            const gravity = -22.0;
+            const bounceVel = 9.5;
+            
+            ballVelocityY += gravity * dt;
+            ballVelocityY = Math.max(ballVelocityY, -40.0); 
+            let nextY = ballGroup.position.y + ballVelocityY * dt;
+
+            towerGroup.rotation.y += (targetTowerRotation - towerGroup.rotation.y) * (dt * 15);
+
+            let hitRing = null;
+            let hitMesh = null;
+
+            for (let r of rings) {
+                if (r.userData.destroyed) continue;
+                
+                if (!r.userData.passed && ballGroup.position.y < r.y - 0.5) {
+                    r.userData.passed = true;
+                    combo++;
+                    if(combo > maxComboThisRun) maxComboThisRun = combo;
+                    score += 15 + combo * 10;
+                    sndComboPass();
+                    updateHUD();
+                }
+
+                if (ballVelocityY < 0 && ballGroup.position.y >= r.y - 0.2 && nextY <= r.y + 0.6) {
+                    raycaster.set(new THREE.Vector3(ballGroup.position.x, r.y + 1, ballGroup.position.z), downVec);
+                    let intersects = raycaster.intersectObjects(r.children, true);
+                    let hit = intersects.find(o => o.object.userData && o.object.userData.type);
+                    if (hit) {
+                        hitRing = r;
+                        hitMesh = hit;
+                        break; 
+                    }
+                }
+            }
+
+            if (hitRing && hitMesh) {
+                let type = hitMesh.object.userData.type;
+                
+                if (type === 'danger') {
+                    if (combo >= 3) {
+                        destroyRing(hitRing, true);
+                        score += combo * 50;
+                        combo = 0;
+                        nextY -= 0.5;
+                        ballVelocityY = -14;
+                    } else {
+                        handleGameOver();
+                        return;
+                    }
+                } else if (type === 'bonus') {
+                    destroyRing(hitRing, false, true); // isBonus=true
+                    combo++;
+                    if(combo > maxComboThisRun) maxComboThisRun = combo;
+                    score += 200 * combo;
+                    nextY -= 0.5;
+                    ballVelocityY = -14;
+                    spawnParticles(ballGroup.position, hitMesh.object.material, 15, 0.6);
+                } else {
+                    if (combo >= 3) {
+                        destroyRing(hitRing, true);
+                        score += combo * 50;
+                        combo = 0;
+                        nextY -= 0.5;
+                        ballVelocityY = -14;
+                    } else {
+                        nextY = hitRing.y + 0.7; 
+                        ballVelocityY = bounceVel;
+                        combo = 0;
+                        sndBounce();
+                        spawnParticles(ballGroup.position, hitMesh.object.material, 10, 0.4);
+                        ball.scale.set(1.4, 0.6, 1.4); 
+                    }
+                }
+                updateHUD();
+            }
+
+            ballGroup.position.y = nextY;
+            ball.scale.lerp(new THREE.Vector3(1,1,1), dt * 10);
+            
+            let lowestRingY = rings.length > 0 ? rings[rings.length-1].y : 0;
+            while (lowestRingY > camera.position.y - 80) {
+                generateRing(towerDepthCounter++);
+                lowestRingY = rings[rings.length-1].y;
+            }
+
+            while(rings.length > 0 && rings[0].y > camera.position.y + 20) {
+                towerGroup.remove(rings.shift());
+            }
+
+            if(poleMesh) poleMesh.position.y = camera.position.y;
+
+            // Manage Evolution Stage
+            let currentEvo = 0;
+            if (score > 6000) currentEvo = 4;
+            else if (score > 3000) currentEvo = 3;
+            else if (score > 1500) currentEvo = 2;
+            else if (score > 500) currentEvo = 1;
+
+            if (currentEvo !== lastEvo) {
+                lastEvo = currentEvo;
+                applyEvolution(currentEvo);
+                triggerFlash();
+            }
+
+            // Energy trail when combo is active
+            if(combo > 2 && !isDead) {
+                 let tp = new THREE.Mesh(new THREE.TetrahedronGeometry(0.3), materials.energyItem);
+                 tp.position.copy(ballGroup.position);
+                 tp.position.x += (Math.random()-0.5)*0.5;
+                 tp.position.z += (Math.random()-0.5)*0.5;
+                 tp.velocity = new THREE.Vector3(0, Math.random()*2, 0);
+                 tp.life = 0.4;
+                 scene.add(tp);
+                 particles.push(tp);
+            }
+        }
+
+        // --- RENDER LOOP ---
+        const clock = new THREE.Clock();
+
+        function render() {
+            requestAnimationFrame(render);
+            let dt = Math.min(clock.getDelta(), 0.1); 
+
+            if(state === 'MENU') {
+                towerGroup.rotation.y += dt * 0.15;
+                if(rings.length===0) initTower(); 
+            }
+
+            // Rainbow ball effect
+            if(ballShopData[stats.equippedBall].isRainbow || lastEvo >= 4) {
+                const hsl = (Date.now() / 2000) % 1;
+                if(lastEvo >= 4) {
+                    ballShell.material.color.setHSL(hsl, 1, 0.6);
+                } else {
+                    ball.material.color.setHSL(hsl, 1, 0.5);
+                    ball.material.emissive.setHSL(hsl, 1, 0.3);
+                    ball.material.emissiveIntensity = 0.6;
+                }
+            }
+
+            // Interpolate Biome
+            let b1 = biomes[0], b2 = biomes[biomes.length-1];
+            let t = 0;
+            let py = camera.position.y;
+            for(let i=0; i<biomes.length-1; i++) {
+                if(py <= biomes[i].y && py > biomes[i+1].y) {
+                    b1 = biomes[i]; b2 = biomes[i+1];
+                    t = (py - b1.y) / (b2.y - b1.y);
+                    break;
+                }
+            }
+            if(py <= biomes[biomes.length-1].y) { b1 = biomes[biomes.length-1]; b2 = b1; t = 0; }
+            
+            let bgCol = b1.bg.clone().lerp(b2.bg, t);
+            scene.background = bgCol;
+            scene.fog.color = bgCol;
+            hemiLight.color = b1.light.clone().lerp(b2.light, t);
+
+            // Particles logic
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                if(p.isEnergy) {
+                    p.life -= dt;
+                    if(p.state === 'scatter') {
+                        p.position.addScaledVector(p.velocity, dt);
+                        p.velocity.y -= 25 * dt; // gravity
+                        if(p.life < 0.8) p.state = 'attract';
+                    } else if(p.state === 'attract') {
+                        let dir = new THREE.Vector3().subVectors(ballGroup.position, p.position).normalize();
+                        p.velocity.lerp(dir.multiplyScalar(40), dt * 10);
+                        p.position.addScaledVector(p.velocity, dt);
+                        
+                        // Absorption
+                        if(p.position.distanceTo(ballGroup.position) < 1.2 && !isDead) {
+                            p.life = 0;
+                            energyThisRun += 1;
+                            stats.energy += 1;
+                            updateHUDData();
+                            ball.scale.set(1.2, 1.2, 1.2); 
+                            sndAbsorb();
+                        }
+                    }
+                    if(p.life <= 0) {
+                        scene.remove(p);
+                        particles.splice(i, 1);
+                    }
+                } else {
+                    p.position.addScaledVector(p.velocity, dt * 45);
+                    p.velocity.y -= 0.05 * dt * 45;
+                    p.scale.multiplyScalar(Math.pow(0.85, dt*60));
+                    if(p.rotationVelocity) {
+                        p.rotation.x += p.rotationVelocity.x * dt;
+                        p.rotation.y += p.rotationVelocity.y * dt;
+                    }
+                    p.life -= dt;
+                    if(p.life <= 0) {
+                        scene.remove(p);
+                        particles.splice(i, 1);
+                    }
+                }
+            }
+
+            // Debris
+            rings.forEach(r => {
+                if(r.userData.destroyed) {
+                    r.children.forEach(c => {
+                        if(c.userData.vY !== undefined) {
+                            c.position.y -= c.userData.vY * dt;
+                            c.position.x += Math.cos(c.rotation.y) * dt * 3;
+                            c.position.z -= Math.sin(c.rotation.y) * dt * 3;
+                            c.userData.vY += 20.0 * dt; 
+                            c.rotation.x += c.userData.rX * dt;
+                            c.rotation.z += c.userData.rZ * dt;
+                            c.scale.multiplyScalar(Math.pow(0.95, dt*60));
+                        }
+                    });
+                }
+            });
+
+            for(let i=activeShockwaves.length-1; i>=0; i--) {
+                let sw = activeShockwaves[i];
+                sw.scale.addScalar(dt * 20);
+                sw.material.opacity -= dt * 3;
+                if(sw.material.opacity <= 0) {
+                    scene.remove(sw);
+                    activeShockwaves.splice(i,1);
+                }
+            }
+
+            // Camera follow
+            let targetCamY = ballGroup.position.y + 6;
+            let targetFov = 60;
+
+            if (!isDead && state === 'PLAYING') {
+                if (targetCamY < camera.position.y) { 
+                    camera.position.y += (targetCamY - camera.position.y) * (dt * 15);
+                }
+                if (ballVelocityY < -15) {
+                    targetFov = Math.min(60 + (-ballVelocityY - 15) * 1.8, 100);
+                }
+            } else if (state === 'MENU') {
+                camera.position.y = 15;
+            }
+
+            camera.fov += (targetFov - camera.fov) * (dt * 6);
+            camera.updateProjectionMatrix();
+
+            let shakeOffset = new THREE.Vector3();
+            if (shakeTime > 0) {
+                shakeTime -= dt;
+                shakeOffset.x = (Math.random() - 0.5) * shakeIntensity;
+                shakeOffset.y = (Math.random() - 0.5) * shakeIntensity;
+                shakeOffset.z = (Math.random() - 0.5) * shakeIntensity;
+            }
+            
+            camera.position.add(shakeOffset);
+            camera.lookAt(0, camera.position.y - (isDead ? 15 : 10), 0);
+            camera.position.sub(shakeOffset); 
+
+            dirLight.position.y = camera.position.y + 30;
+
+            if (ballShell.material.opacity > 0) {
+                ballShell.rotation.y += dt * 2;
+                ballShell.rotation.x += dt;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- BIND UI EVENTS ---
+        let currentShopTab = 'SKINS';
+        
+        document.getElementById('tab-skins').onclick = () => { currentShopTab = 'SKINS'; updateShopUI(); };
+        document.getElementById('tab-music').onclick = () => { currentShopTab = 'MUSIC'; updateShopUI(); };
+
+        function updateShopUI() {
+            const t = i18n[currentLang];
+            document.getElementById('shop-energy').innerText = stats.energy;
+            
+            document.getElementById('tab-skins').innerText = t.skinsTab;
+            document.getElementById('tab-music').innerText = t.musicTab;
+            document.getElementById('tab-skins').className = 'btn' + (currentShopTab === 'SKINS' ? ' active' : '');
+            document.getElementById('tab-music').className = 'btn' + (currentShopTab === 'MUSIC' ? ' active' : '');
+
+            const grid = document.getElementById('shop-grid');
+            grid.innerHTML = '';
+            
+            const data = currentShopTab === 'SKINS' ? ballShopData : musicShopData;
+            const equippedKey = currentShopTab === 'SKINS' ? stats.equippedBall : stats.equippedMusic;
+            const unlockedArr = currentShopTab === 'SKINS' ? stats.unlockedBalls : stats.unlockedMusic;
+
+            for(let key in data) {
+                let sd = data[key];
+                let isUnlocked = unlockedArr.includes(key);
+                let isEquipped = equippedKey === key;
+                
+                let b = document.createElement('div');
+                b.className = 'shop-item' + (isEquipped ? ' active' : '');
+                if (!isUnlocked) b.style.opacity = '0.7';
+                
+                let dot = document.createElement('div');
+                dot.className = 'shop-color-preview';
+                
+                if (currentShopTab === 'SKINS') {
+                    if (sd.isRainbow) {
+                        dot.style.background = 'linear-gradient(45deg, red, yellow, green, cyan, blue, magenta)';
+                    } else {
+                        dot.style.backgroundColor = '#' + sd.color.toString(16).padStart(6,'0');
+                    }
+                } else {
+                    dot.style.backgroundColor = '#E2E8F0';
+                    dot.style.display = 'flex';
+                    dot.style.alignItems = 'center';
+                    dot.style.justifyContent = 'center';
+                    dot.innerHTML = '🎵';
+                    dot.style.fontSize = '1.3rem';
+                }
+                
+                let text = document.createElement('div');
+                text.style.textAlign = 'center';
+                let displayName = (t.skinsNames && t.skinsNames[key]) || (t.musicNames && t.musicNames[key]) || sd.name;
+
+                if (isEquipped) {
+                    text.innerHTML = `<div>${displayName}</div><div style="font-size:0.8rem; color:var(--primary);">${t.equipped}</div>`;
+                } else if (isUnlocked) {
+                    text.innerHTML = `<div>${displayName}</div><div style="font-size:0.8rem; color:var(--success-dark);">${t.select}</div>`;
+                } else {
+                    text.innerHTML = `<div>${displayName}</div><div style="font-size:0.9rem; color:var(--danger); font-weight: 900;">⚡ ${sd.price}</div>`;
+                }
+
+                b.appendChild(dot);
+                b.appendChild(text);
+
+                b.onclick = () => {
+                    initAudio();
+                    if (isUnlocked) {
+                        if (currentShopTab === 'SKINS') {
+                            stats.equippedBall = key;
+                            updateBallMaterial();
+                        } else {
+                            stats.equippedMusic = key;
+                            currentNote = 0;
+                            nextNoteTime = audioCtx ? audioCtx.currentTime + 0.1 : 0;
+                        }
+                        saveStats();
+                        updateShopUI();
+                    } else if (stats.energy >= sd.price) {
+                        stats.energy -= sd.price;
+                        if (currentShopTab === 'SKINS') {
+                            stats.unlockedBalls.push(key);
+                            stats.equippedBall = key;
+                            updateBallMaterial();
+                        } else {
+                            stats.unlockedMusic.push(key);
+                            stats.equippedMusic = key;
+                            currentNote = 0;
+                            nextNoteTime = audioCtx ? audioCtx.currentTime + 0.1 : 0;
+                        }
+                        saveStats();
+                        updateShopUI();
+                    } else {
+                        b.style.transform = 'translateY(0) scale(0.95)';
+                        setTimeout(() => b.style.transform = '', 100);
+                    }
+                };
+                grid.appendChild(b);
+            }
+        }
+        
+        function updateBallMaterial() {
+            const sd = ballShopData[stats.equippedBall];
+            let matProps = { color: sd.color, roughness: sd.roughness || 0.4, metalness: sd.metalness || 0.1 };
+            if(sd.emissive) { matProps.emissive = sd.emissive; matProps.emissiveIntensity = sd.emissiveIntensity; }
+            if(sd.transparent) { matProps.transparent = true; matProps.opacity = sd.transmission || 1; }
+            ball.material = new THREE.MeshStandardMaterial(matProps);
+            if(sd.isRainbow) ball.material.emissive = new THREE.Color(); 
+        }
+
+        document.getElementById('btn-play').onclick = () => { initAudio(); startSession(); };
+        document.getElementById('btn-go-retry').onclick = () => { startSession(); };
+        document.getElementById('btn-go-continue').onclick = () => { 
+            let btn = document.getElementById('btn-go-continue');
+            if (stats.energy >= 150 && isDead) {
+                stats.energy -= 150;
+                saveStats();
+                btn.style.pointerEvents = 'none';
+                btn.innerText = i18n[currentLang].loadingAd;
+                setTimeout(() => {
+                    btn.style.pointerEvents = 'auto'; // restore
+                    startSession(true); 
+                }, 500); 
+            }
+        };
+        
+        const goMenu = () => { state = 'MENU'; showScreen('scr-menu'); ballGroup.visible = true; initTower(); applyEvolution(0); };
+        document.getElementById('btn-go-menu').onclick = goMenu;
+        
+        document.getElementById('btn-shop').onclick = () => { updateShopUI(); showScreen('scr-shop'); };
+        document.getElementById('btn-shop-back').onclick = goMenu;
+        
+        // Kickoff
+        applyLang();
+        updateHUDData();
+        updateBallMaterial();
+
+        render();
+
+        setInterval(() => {
+            updatePhysics(1/60);
+        }, 1000/60);
+
+    </script>
+</body>
+</html>
